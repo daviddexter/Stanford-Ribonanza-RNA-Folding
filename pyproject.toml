@@ -1,0 +1,15 @@
+[tool.poetry]
+name = "stanford-ribonanza-rna-folding"
+version = "0.1.0"
+description = ""
+authors = ["Mwangi Kariuki <dmwangi@kineticengines.co.ke>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.8"
+click = "^8.1.7"
+
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
