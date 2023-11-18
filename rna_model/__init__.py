@@ -6,6 +6,7 @@ import polars as pl
 
 from tqdm import tqdm
 from loguru import logger
+from rna_model.model import get_base_model
 from rna_model.utils import ( _remove_incomplete_sequences, create_example, 
                              get_reactivity_cols, 
                              get_reactivity_error_cols, get_train_tfrecords_path, 
@@ -104,7 +105,12 @@ def read_tfrecord(no_nulls:bool):
 
 
 @click.command
-def train_model():
+def train_base_model():
+    ds = read_tfrecord_fn(True)
+
+    model = get_base_model()
+    model.compile(optimizer=tf.keras.optimizers.AdamW(),loss=tf.keras.losses.mean_absolute_error)
+    model.fit(ds,epochs=10,verbose=2)
     pass
     
     

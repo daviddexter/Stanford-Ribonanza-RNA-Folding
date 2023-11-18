@@ -447,8 +447,8 @@ class Attention(tf.keras.layers.Layer):
   def call(self,
            query_input,
            source_input,
-           bias,
-           training,
+          #  bias,
+          #  training,
            cache=None,
            decode_loop_step=None):
     """Apply attention mechanism to query_input and source_input.
@@ -521,8 +521,8 @@ class SelfAttention(Attention):
 
   def call(self,
            query_input,
-           bias,
-           training,
+           bias=None,
+           training=True,
            cache=None,
            decode_loop_step=None):
     return super(SelfAttention, self).call(query_input, query_input, bias,

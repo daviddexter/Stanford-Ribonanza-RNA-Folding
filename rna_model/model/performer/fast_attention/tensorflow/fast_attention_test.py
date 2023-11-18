@@ -18,7 +18,7 @@
 
 import math
 import tensorflow as tf
-from rna_model.performer.fast_attention.tensorflow import fast_attention
+from rna_model.model.performer.fast_attention.tensorflow import fast_attention
 
 
 

@@ -183,10 +183,12 @@ def parse_tfrecord_fn(example):
 def encode_experiments(x):
     exp_type = x['experiment_type']
 
-    if exp_type == "DMS_MaP":
-        encode = 0
+    if exp_type == "DMS_MaP":        
+        # between 0.1 and 0.5
+        encode = tf.linspace(0.1, 0.5 , 457, axis=-1)
     else:
-        encode = 1
+        # between 0.6 and 1.0
+        encode = tf.linspace(0.6, 1.0 , 457, axis=-1)
 
     x['experiment_type'] = encode
     return x
@@ -195,18 +197,13 @@ def encode_experiments(x):
 def concat_targets(x):        
     encoded_sequence = tf.convert_to_tensor(x['sequence'] , dtype=tf.float32) 
     encoded_sequence = tf.expand_dims(encoded_sequence, axis=0) 
-    # encoded_sequence_shape = encoded_sequence.shape # reshape from (457,1) to (1,457)  
-    # encoded_sequence = tf.reshape(encoded_sequence,[encoded_sequence_shape[1], encoded_sequence_shape[0]]) 
-
+    
     exp = x['experiment_type']
     exp = tf.expand_dims(exp, axis=0)
 
     targets = tf.convert_to_tensor(x['reactivity'] , dtype=tf.float32)
     targets = tf.clip_by_norm(targets, 0.5)
     targets = tf.expand_dims(targets, axis=0)    
-    # targets_shape = targets.shape # reshape from (457,1) to (1,457)    
-    # targets = tf.reshape(targets,[targets_shape[1], targets_shape[0]])
-
     return (encoded_sequence,exp), targets  
 
 
