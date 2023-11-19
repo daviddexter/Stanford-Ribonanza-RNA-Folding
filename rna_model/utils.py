@@ -7,7 +7,7 @@ import numpy as np
 
 from os.path import isfile
 from functools import lru_cache
-from typing import Dict
+from typing import Dict, List
 from tqdm import tqdm
 from loguru import logger
 from os.path import join
@@ -215,10 +215,28 @@ def cast_types(features,targets):
     return (sequences,exp), targets
 
 
-def read_tfrecord_fn(no_nulls=True):    
+def read_tfrecord_fn(no_nulls=True, training_set=True,threshold=70): 
+    """
+    Read dateset from filesystem. The default set is the training set which is a percentage of the
+    entire dataset provider by the argument `threshold`. To return the validation set, the argument 
+    `training_set` should be False
+
+    """   
     path = get_train_tfrecords_path(no_nulls=no_nulls)    
     files = [join(path,f) for f in os.listdir(path)]
-    raw_dataset:tf.data.TFRecordDataset = tf.data.TFRecordDataset(filenames=files,num_parallel_reads=tf.data.AUTOTUNE)   
+    size = len(files)
+    
+    record_set: None | List = None
+    if training_set:
+        split_index = int((threshold * size ) // 100) 
+        record_set = files[:split_index]
+    else:
+        split_index = int(( (100 - threshold) * size ) // 100) 
+        record_set = files[size-split_index:] 
+
+    del files
+    
+    raw_dataset:tf.data.TFRecordDataset = tf.data.TFRecordDataset(filenames=record_set,num_parallel_reads=tf.data.AUTOTUNE)   
     ds = raw_dataset.map(parse_tfrecord_fn,num_parallel_calls=tf.data.AUTOTUNE, deterministic=False)    
     ds = ds.map(encode_experiments,num_parallel_calls=tf.data.AUTOTUNE,deterministic=False)
     ds = ds.map(concat_targets,num_parallel_calls=tf.data.AUTOTUNE, deterministic=False)    

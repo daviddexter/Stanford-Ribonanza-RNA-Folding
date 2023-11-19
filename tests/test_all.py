@@ -3,11 +3,27 @@ from rna_model.model.layers import SequenceAndExperimentInputs
 from rna_model.model.performer.fast_attention.tensorflow.fast_attention import Attention
 
 
+
+def test_dataset_split():
+    split_threshold=70
+    train_ds = read_tfrecord_fn(threshold=split_threshold)
+    val_ds = read_tfrecord_fn(training_set=False,threshold=split_threshold)    
+
+    samples_num1 = train_ds.reduce(0, lambda x,_: x+1).numpy()
+    samples_num2 = val_ds.reduce(0, lambda x,_: x+1).numpy()
+
+    assert samples_num1 != samples_num2
+
+    full_count1 = (100 * samples_num1) // split_threshold
+    full_count2 = (100 * samples_num2) // (100 - split_threshold)
+
+    assert full_count1 != full_count2
+
+
 def test_sequence_exp_input_layer():
     ds = read_tfrecord_fn()
     ds = ds.take(1)
-    ds = list(ds.as_numpy_iterator())
-    import ipdb;ipdb.set_trace()
+    ds = list(ds.as_numpy_iterator())    
     inputs = ds[0][0]
     assert inputs[0].shape == (1,457)
     assert inputs[1].shape == (1,457)
