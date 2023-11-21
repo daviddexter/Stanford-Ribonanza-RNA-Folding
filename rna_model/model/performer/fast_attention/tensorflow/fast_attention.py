@@ -359,6 +359,7 @@ def favor_attention(query,
   return av_attention / attention_normalizer
 
 
+@tf.keras.saving.register_keras_serializable()
 class Attention(tf.keras.layers.Layer):
   """Multi-headed attention layer."""
 
@@ -370,7 +371,8 @@ class Attention(tf.keras.layers.Layer):
                numerical_stabilizer=0.001,
                causal=False,
                projection_matrix_type=None,
-               nb_random_features=0):
+               nb_random_features=0,
+               **kwargs):
     """Initialize Attention.
 
     Args:
@@ -391,7 +393,7 @@ class Attention(tf.keras.layers.Layer):
           "Hidden size ({}) must be divisible by the number of heads ({})."
           .format(hidden_size, num_heads))
 
-    super(Attention, self).__init__()
+    super(Attention, self).__init__(**kwargs)
     self.hidden_size = hidden_size
     self.num_heads = num_heads
     self.attention_dropout = attention_dropout
@@ -516,6 +518,7 @@ class Attention(tf.keras.layers.Layer):
     return attention_output
 
 
+@tf.keras.saving.register_keras_serializable()
 class SelfAttention(Attention):
   """Multiheaded self-attention layer."""
 
@@ -524,6 +527,7 @@ class SelfAttention(Attention):
            bias=None,
            training=True,
            cache=None,
-           decode_loop_step=None):
+           decode_loop_step=None,
+           **kwargs):
     return super(SelfAttention, self).call(query_input, query_input, bias,
-                                           training, cache, decode_loop_step)
+                                           training, cache, decode_loop_step,**kwargs)

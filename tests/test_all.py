@@ -43,9 +43,11 @@ def test_attention_layer():
     layer = SequenceAndExperimentInputs()
     x = layer(inputs)
 
-    x = Attention(hidden_size=64,num_heads=8,attention_dropout=0.5)(x[0],x[1])
-    
-    assert x.shape == (1, 457, 64)
+    x1 = Attention(hidden_size=64,num_heads=8,attention_dropout=0.5)(x[0],x[1])        
+    assert x1.shape == (1, 457, 64)
+
+    x2 = Attention(hidden_size=64,num_heads=8,attention_dropout=0.5)(x[0],x[0])    
+    assert x2.shape == (1, 457, 64)
 
 
     

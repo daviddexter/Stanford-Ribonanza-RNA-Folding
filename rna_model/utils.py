@@ -212,7 +212,11 @@ def cast_types(features,targets):
     sequences = tf.cast(sequences, tf.float32)
     exp = tf.cast(exp,tf.float32)
     targets = tf.cast(targets,tf.float32)
-    return (sequences,exp), targets
+
+    seq = tf.reshape(sequences,(1,457))
+    exp = tf.reshape(exp,(1,457))
+    targets = tf.reshape(targets,(1,457))
+    return ((seq,exp),targets)
 
 
 def read_tfrecord_fn(no_nulls=True, training_set=True,threshold=70): 

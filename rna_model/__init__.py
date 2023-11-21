@@ -5,7 +5,7 @@ import tensorflow as tf
 import polars as pl
 
 from loguru import logger
-from rna_model.model import train_model_fn
+from rna_model.model import RNAReacitivityModel
 from rna_model.utils import ( _remove_incomplete_sequences, create_example, 
                              get_reactivity_cols, 
                              get_reactivity_error_cols, get_train_tfrecords_path, 
@@ -102,6 +102,8 @@ def read_tfrecord(no_nulls:bool):
     return read_tfrecord_fn(no_nulls)
 
 
+
 @click.command
-def train_base_model():
-    train_model_fn()
+def train_model():
+    model = RNAReacitivityModel()
+    model.train_model_runner()
