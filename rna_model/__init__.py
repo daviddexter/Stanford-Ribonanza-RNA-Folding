@@ -104,6 +104,27 @@ def read_tfrecord(no_nulls:bool):
 
 
 @click.command
-def train_model():
-    model = RNAReacitivityModel()
-    model.train_model_runner()
+@click.option('-mn', '--model-name',help="The name of the output model. The out model will be saved in out/models directory.")
+@click.option('-ep', '--epochs',help="The number of epochs tp train the model on.")
+def train_model(model_name:str,log_dir:str,epochs:int):
+    if model_name is None:
+        click.echo("`model_name` must be specified")
+        return  
+
+    if epochs is None:
+        click.echo("`epochs` must be specified")
+        return
+
+    epochs_count = int(epochs)
+    if epochs_count < 30:
+        click.echo("`epochs` should be a minimum of 30. Defaulting to using 30 epochs")
+        epochs_count = 30
+
+
+
+    tf.debugging.set_log_device_placement(False)
+    gpus = tf.config.list_logical_devices('GPU')
+    strategy = tf.distribute.MirroredStrategy(gpus)
+    with strategy.scope():
+        model = RNAReacitivityModel()
+        model.train_model_runner(model_name,epochs_count)

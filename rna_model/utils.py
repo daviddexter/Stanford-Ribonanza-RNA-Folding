@@ -219,6 +219,7 @@ def cast_types(features,targets):
     return ((seq,exp),targets)
 
 
+@tf.function
 def read_tfrecord_fn(no_nulls=True, training_set=True,threshold=70): 
     """
     Read dateset from filesystem. The default set is the training set which is a percentage of the
@@ -246,4 +247,4 @@ def read_tfrecord_fn(no_nulls=True, training_set=True,threshold=70):
     ds = ds.map(concat_targets,num_parallel_calls=tf.data.AUTOTUNE, deterministic=False)    
     ds = ds.map(cast_types,num_parallel_calls=tf.data.AUTOTUNE)    
     ds = ds.shuffle(1000, reshuffle_each_iteration = True)       
-    return ds.prefetch(tf.data.AUTOTUNE) 
+    return ds.cache().prefetch(tf.data.AUTOTUNE)

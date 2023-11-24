@@ -1,5 +1,5 @@
 from rna_model.utils import read_tfrecord_fn
-from rna_model.model.layers import SequenceAndExperimentInputs
+from rna_model.model.layers import MultiHeadAttentionBlock, SelfAttentionBlock, SequenceAndExperimentInputs
 from rna_model.model.performer.fast_attention.tensorflow.fast_attention import Attention
 
 
@@ -50,8 +50,31 @@ def test_attention_layer():
     assert x2.shape == (1, 457, 64)
 
 
-    
+def test_multiheadattentionblock():
+    ds = read_tfrecord_fn()
+    ds = ds.take(1)
+    ds = list(ds.as_numpy_iterator())
+    inputs = ds[0][0]
+
+    layer = SequenceAndExperimentInputs()
+    x = layer(inputs)
+
+    x = MultiHeadAttentionBlock(name="Multi-Head-1",hidden_size=64,att_heads=2,
+                                att_dropout=0.5)(x)
+    assert x.shape == (1, 457, 64)
 
 
+def test_selfattentionblock():
+    ds = read_tfrecord_fn()
+    ds = ds.take(1)
+    ds = list(ds.as_numpy_iterator())
+    inputs = ds[0][0]
 
-    
+    layer = SequenceAndExperimentInputs()
+    x = layer(inputs)
+
+    x = MultiHeadAttentionBlock(name="Multi-Head-1",hidden_size=64,att_heads=2,
+                                att_dropout=0.5)(x) 
+
+    x = SelfAttentionBlock(name="Self-Attention-1",hidden_size=64,att_heads=2,att_dropout=0.5)(x)
+    assert x.shape == (1, 457, 64)   

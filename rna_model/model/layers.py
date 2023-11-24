@@ -1,11 +1,13 @@
 import tensorflow as tf
 
+
+from rna_model.model.performer.fast_attention.tensorflow.fast_attention import Attention
+
 @tf.keras.saving.register_keras_serializable()
 class SequenceAndExperimentInputs(tf.keras.layers.Layer):   
     
     def __init__(self, emb_out_dim=64):        
-        super(SequenceAndExperimentInputs, self).__init__()
-
+        super().__init__()
         self.sequence_input = tf.keras.layers.InputLayer(input_shape=(1,457))
         self.experiment_input = tf.keras.layers.InputLayer(input_shape=(1,457))
 
@@ -30,20 +32,35 @@ class SequenceAndExperimentInputs(tf.keras.layers.Layer):
     
 
 
+class MultiHeadAttentionBlock(tf.keras.layers.Layer):
 
+    def __init__(self, name:str, hidden_size=64,att_heads=8, att_dropout=0.5):
+        super().__init__()
+        self.mhatt1 = Attention(hidden_size=hidden_size,num_heads=att_heads,attention_dropout=att_dropout,name=name)
+        self.layernorm = tf.keras.layers.LayerNormalization(epsilon=1e-6)        
+        self.dropout = tf.keras.layers.Dropout(0.5)        
 
-
-
-
-
-
-
-
-        
-
-        
-
+    def call(self,inputs):
+        x1,x2 = inputs[0], inputs[1]
+        x = self.mhatt1(x1,x2)
+        assert x.shape == (1, 457, 64)
+        x= self.layernorm(x)
+        return self.dropout(x)
     
 
 
+class SelfAttentionBlock(tf.keras.layers.Layer):
+    def __init__(self, name:str, hidden_size=64,att_heads=8, att_dropout=0.5):
+        super().__init__()
+        self.sattn = Attention(hidden_size=hidden_size,num_heads=att_heads,attention_dropout=att_dropout,name=name)
+        self.layernorm1 = tf.keras.layers.LayerNormalization(epsilon=1e-6)   
+        self.dense = tf.keras.layers.Dense(64,activation=tf.keras.activations.relu)
+        self.layernorm2 = tf.keras.layers.LayerNormalization(epsilon=1e-6)     
+        self.dropout = tf.keras.layers.Dropout(0.5) 
 
+    def call(self,inputs):
+        x = self.sattn(inputs,inputs)
+        x = self.layernorm1(x)
+        x = self.dense(x)
+        x = self.dropout(x)
+        return self.layernorm2(x)
