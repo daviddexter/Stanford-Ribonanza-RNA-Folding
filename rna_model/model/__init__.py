@@ -1,12 +1,12 @@
-import os
+import csv
 
 import tensorflow as tf
+from loguru import logger
 
 from keras.src.engine import data_adapter
 
 from rna_model.model.layers import MultiHeadAttentionBlock, SelfAttentionBlock, SequenceAndExperimentInputs
-from rna_model.model.performer.fast_attention.tensorflow.fast_attention import Attention, SelfAttention
-from rna_model.utils import read_tfrecord_fn
+from rna_model.utils import encode_experiment_type, get_or_create_log_path, get_or_create_model_path, load_testdataset, read_tfrecord_fn, sequence_to_ndarray, submission_path
 
 
 @tf.keras.saving.register_keras_serializable()
@@ -43,8 +43,30 @@ class RNAReacitivityModel(tf.keras.Model):
         self.sattn4 = SelfAttentionBlock(name="Self-Attention-4",hidden_size=hidden_size,
                                          att_heads=att_heads*4,att_dropout=att_dropout)    
         
-        self.dense1 = tf.keras.layers.Dense(64,activation=tf.keras.activations.relu)      
-        self.dense2 = tf.keras.layers.Dense(1)
+        self.dense1 = tf.keras.layers.Dense(64,activation=tf.keras.activations.relu,
+                                            kernel_regularizer=tf.keras.regularizers.L2(0.001))      
+        self.dense2 = tf.keras.layers.Dense(1,kernel_regularizer=tf.keras.regularizers.L2(0.001))
+
+
+    # def get_config(self):
+    #     config = super().get_config()
+    #     config.update(
+    #         {
+    #             "inputs": self.inputs,
+    #             "mhatt1": self.mhatt1,
+    #             "mhatt2": self.mhatt2,
+    #             "mhatt3": self.mhatt3,
+    #             "mhatt4": self.mhatt4,
+    #             "avg1": self.avg1,
+    #             "sattn1": self.sattn1,
+    #             "sattn2": self.sattn2,
+    #             "sattn3": self.sattn3,
+    #             "sattn4": self.sattn4,
+    #             "dense1": self.dense1,
+    #             "dense2": self.dense2,
+    #         }
+    #     )
+    #     return config  
         
 
     def call(self, inputs):     
@@ -123,56 +145,82 @@ class RNAReacitivityModel(tf.keras.Model):
 
     @property
     def validation_dataset(self):
-        return read_tfrecord_fn(True,training_set=False)
-    
-
-    def _get_model_path(self,model_name:str) -> str:
-        out_model_path = "out/models"
-        model_name_with_extenstion = f"{model_name}.keras"
-        model_path = os.path.join(out_model_path,model_name_with_extenstion)
-        return model_path
-    
-    
-    def _get_log_path(self,model_name:str) -> str:
-        out_model_path = "out/logs"        
-        log_path = os.path.join(out_model_path,model_name)
-        return log_path
-    
-
-    def _get_or_create_model_path(self,model_name:str) -> str:
-        current_path = self._get_model_path(model_name=model_name)
-        if os.path.exists(current_path) and os.path.isfile(current_path):
-            os.remove(current_path)
-            return self._get_model_path(model_name=model_name)
-        else:
-            return current_path 
+        return read_tfrecord_fn(True,training_set=False)                
 
 
-    def _get_or_create_log_path(self,model_name:str) -> str:
-        current_path = self._get_log_path(model_name=model_name)
-        if os.path.exists(current_path):
-            os.remove(current_path)
-            os.mkdir(current_path)
-            return self._get_log_path(model_name=model_name)
-        else:
-            os.mkdir(current_path)
-            return self._get_log_path(model_name=model_name)               
-
-
-    def train_model_runner(self,model_name:str,epochs:int = 30):   
-        out_model_path = self._get_or_create_model_path(model_name=model_name)
-        out_log_path = self._get_or_create_log_path(model_name=model_name)
+    def train_model_runner(self,model_name:str,epochs:int = 30): 
+        logger.info("Training model ...")
+        out_model_path = get_or_create_model_path(model_name=model_name)
+        out_log_path = get_or_create_log_path(model_name=model_name)
 
         training_set = self.training_dataset
-        validation_set = self.validation_dataset        
+        validation_set = self.validation_dataset    
 
-        self.compile(optimizer=tf.keras.optimizers.AdamW(learning_rate=0.0005),
-                     loss=tf.keras.losses.mean_absolute_error)       
+        lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+            0.0005,decay_steps=1000,decay_rate=0.96,staircase=True)
+    
+
+        self.compile(optimizer=tf.keras.optimizers.experimental.AdamW(learning_rate=lr_schedule),
+                     loss=tf.keras.losses.mean_absolute_error,
+                     metrics=[tf.keras.metrics.MeanAbsoluteError()])       
 
         tensorboard_callback = tf.keras.callbacks.TensorBoard(log_dir=out_log_path, histogram_freq=1)
 
         self.fit(training_set,validation_data=validation_set,epochs=epochs,steps_per_epoch=1000,
-                 verbose=1,callbacks=[tensorboard_callback])
+                 validation_steps=1000,verbose=1,callbacks=[tensorboard_callback])
         
         self.summary()
         self.save(out_model_path)
+
+        logger.info("Predicting ...")
+
+        df = load_testdataset()    
+
+
+        submission_record_path = submission_path()
+        with open(submission_record_path, 'a+', newline='') as file:
+            writer = csv.writer(file,dialect='excel')
+
+            for row in df.iter_rows(named=True):
+                start_index = row['id_min']
+                end_index = row['id_max']
+                sequence_length = end_index - start_index
+
+                sequence = row['sequence']
+                # convert to numpy feature
+                encoded_sequence = sequence_to_ndarray(sequence)
+                encoded_sequence = tf.expand_dims(encoded_sequence, axis=0)
+                encoded_sequence = tf.reshape(encoded_sequence,(1,457))
+
+                # encode DMS_MaP
+                exp_dms_map_encoded = encode_experiment_type("DMS_MaP")
+                exp_dms_map_encoded = tf.expand_dims(exp_dms_map_encoded, axis=0)
+                exp_dms_map_encoded = tf.reshape(exp_dms_map_encoded,(1,457))
+
+                # encode 2A3_MaP
+                exp_2a3_map_encoded = encode_experiment_type("2A3_MaP")
+                exp_2a3_map_encoded = tf.expand_dims(exp_2a3_map_encoded, axis=0)
+                exp_2a3_map_encoded  = tf.reshape(exp_2a3_map_encoded,(1,457))
+
+
+                exp_dms_predict_dataset = (encoded_sequence,exp_dms_map_encoded)            
+                exp_dms_prediction = self.predict(exp_dms_predict_dataset,verbose=1,batch_size=1)
+                prediction1 = []
+                for i in range(0,sequence_length+1):
+                    prediction1.append(exp_dms_prediction[0][i][0])
+
+
+                exp_2a3_predict_dataset = (encoded_sequence,exp_2a3_map_encoded)
+                exp_2a3_prediction = self.predict(exp_2a3_predict_dataset,verbose=1,batch_size=1)
+                prediction2 = []
+                for i in range(0,sequence_length+1):
+                    prediction2.append(exp_2a3_prediction[0][i][0])
+
+                ids = [ i for i in range(start_index,end_index+1)]
+
+                # merge predictions
+                results = zip(ids,prediction1,prediction2)
+                results = list(results)   
+                results = [ list(r)  for r in results ]               
+                
+                writer.writerows(results)

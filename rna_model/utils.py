@@ -1,5 +1,6 @@
 import os
-import click
+import shutil
+import csv
 import tensorflow as tf
 import polars as pl
 import seaborn as sns
@@ -8,7 +9,6 @@ import numpy as np
 from os.path import isfile
 from functools import lru_cache
 from typing import Dict, List
-from tqdm import tqdm
 from loguru import logger
 from os.path import join
 
@@ -74,14 +74,15 @@ def load_training_dataset(no_nulls:bool):
 
         df.sink_parquet(train_dataset_as_parquet,compression_level=20) 
         del df
-        return pl.scan_parquet(train_dataset_as_parquet)      
+        return pl.scan_parquet(train_dataset_as_parquet)  
 
 
 @lru_cache
 def load_testdataset():
+    logger.info("Reading test dataset")
     test_data_path = "/home/kineticengines/app/datasets/test_sequences.csv"
-    lazy_table = pl.scan_csv(test_data_path)    
-    return lazy_table 
+    df = pl.scan_csv(test_data_path).drop("sequence_id","future").collect()
+    return df
 
 
 def check_experiments_profile_count():
@@ -136,13 +137,18 @@ def float_feature(value):
         return tf.train.Feature(float_list=tf.train.FloatList(value=value.tolist()))
     
 
-def sequence_feature(value):
-    """Returns a bytes_list from a list of byte."""    
+def sequence_to_ndarray(value):
     seq = [s.encode() for s in list(value)]
     lookup = string_lookup()
     encoded_sequence = lookup(seq)
     encoded_sequence = encoded_sequence.numpy()    
     encoded_sequence = np.concatenate((encoded_sequence, np.zeros(MAX_LEN-encoded_sequence.shape[0]))).astype(np.float32)
+    return encoded_sequence
+    
+
+def sequence_feature(value):
+    """Returns a bytes_list from a list of byte."""
+    encoded_sequence = sequence_to_ndarray(value)
     return tf.train.Feature(float_list=tf.train.FloatList(value=encoded_sequence.tolist()))    
 
 
@@ -180,17 +186,21 @@ def parse_tfrecord_fn(example):
     return out
 
 
-def encode_experiments(x):
-    exp_type = x['experiment_type']
 
-    if exp_type == "DMS_MaP":        
+def encode_experiment_type(value:str):    
+    if value == "DMS_MaP":        
         # between 0.1 and 0.5
         encode = tf.linspace(0.1, 0.5 , 457, axis=-1)
     else:
         # between 0.6 and 1.0
         encode = tf.linspace(0.6, 1.0 , 457, axis=-1)
 
-    x['experiment_type'] = encode
+    return encode
+
+
+def encode_experiments(x):
+    exp_type = x['experiment_type']
+    x['experiment_type'] = encode_experiment_type(exp_type)
     return x
 
 
@@ -247,4 +257,65 @@ def read_tfrecord_fn(no_nulls=True, training_set=True,threshold=70):
     ds = ds.map(concat_targets,num_parallel_calls=tf.data.AUTOTUNE, deterministic=False)    
     ds = ds.map(cast_types,num_parallel_calls=tf.data.AUTOTUNE)    
     ds = ds.shuffle(1000, reshuffle_each_iteration = True)       
-    return ds.cache().prefetch(tf.data.AUTOTUNE)
+    return ds.repeat().prefetch(tf.data.AUTOTUNE)
+
+
+
+def get_log_path(model_name:str) -> str:
+    out_model_path = "out/logs"        
+    log_path = os.path.join(out_model_path,model_name)
+    return log_path
+
+
+
+
+
+def submission_path():
+    path = "out/submission.csv" 
+    if os.path.exists(path) and os.path.isfile(path):
+        os.remove(path)
+        with open(path, 'w', newline='') as file:
+            writer = csv.writer(file)
+            field = ["id", "reactivity_DMS_MaP", "reactivity_2A3_MaP"]
+            writer.writerow(field)
+        return path
+    else:
+        with open(path, 'w', newline='') as file:
+            writer = csv.writer(file)
+            field = ["id", "reactivity_DMS_MaP", "reactivity_2A3_MaP"]
+            writer.writerow(field)
+        return path       
+
+    
+
+def get_or_create_model_path(model_name:str) -> str:
+    current_path = get_model_path(model_name=model_name)
+    if os.path.exists(current_path) and os.path.isfile(current_path):
+        os.remove(current_path)
+        return get_model_path(model_name=model_name)
+    else:
+        return current_path 
+
+
+def get_or_create_log_path(model_name:str) -> str:
+    current_path = get_log_path(model_name=model_name)
+    if os.path.exists(current_path):
+        shutil.rmtree(current_path)
+        os.mkdir(current_path)
+        return get_log_path(model_name=model_name)
+    else:
+        os.mkdir(current_path)
+        return get_log_path(model_name=model_name)   
+
+
+def get_model_path(model_name:str) -> str:
+    out_model_path = "out/models"
+    model_name_with_extenstion = f"{model_name}.keras"
+    model_path = os.path.join(out_model_path,model_name_with_extenstion)
+    return model_path
+
+
+def load_fs_model(model_name:str):
+    out_model_path = get_model_path(model_name=model_name)    
+    model = tf.keras.saving.load_model(out_model_path)
+    return model

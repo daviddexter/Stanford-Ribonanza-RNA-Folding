@@ -15,7 +15,6 @@ main.add_command(dump_as_tfrecord)
 main.add_command(read_tfrecord)
 main.add_command(train_model)
 
-
 if __name__ == "__main__":
     # ps aux --sort=-%mem | head
     main()

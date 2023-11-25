@@ -6,10 +6,10 @@ import polars as pl
 
 from loguru import logger
 from rna_model.model import RNAReacitivityModel
-from rna_model.utils import ( _remove_incomplete_sequences, create_example, 
+from rna_model.utils import ( _remove_incomplete_sequences, create_example, encode_experiment_type, 
                              get_reactivity_cols, 
-                             get_reactivity_error_cols, get_train_tfrecords_path, 
-                             load_training_dataset, read_tfrecord_fn)
+                             get_reactivity_error_cols, get_train_tfrecords_path, load_fs_model, load_testdataset, 
+                             load_training_dataset, read_tfrecord_fn, sequence_to_ndarray)
 
 
 @click.command
@@ -106,7 +106,7 @@ def read_tfrecord(no_nulls:bool):
 @click.command
 @click.option('-mn', '--model-name',help="The name of the output model. The out model will be saved in out/models directory.")
 @click.option('-ep', '--epochs',help="The number of epochs tp train the model on.")
-def train_model(model_name:str,log_dir:str,epochs:int):
+def train_model(model_name:str,epochs:int):
     if model_name is None:
         click.echo("`model_name` must be specified")
         return  
@@ -116,12 +116,7 @@ def train_model(model_name:str,log_dir:str,epochs:int):
         return
 
     epochs_count = int(epochs)
-    if epochs_count < 30:
-        click.echo("`epochs` should be a minimum of 30. Defaulting to using 30 epochs")
-        epochs_count = 30
-
-
-
+    
     tf.debugging.set_log_device_placement(False)
     gpus = tf.config.list_logical_devices('GPU')
     strategy = tf.distribute.MirroredStrategy(gpus)
