@@ -1,6 +1,6 @@
 import click
 
-from rna_model import (check_sequence_length_to_reactivitiy_columns,
+from rna_model import (check_sequence_length_to_reactivitiy_columns, evaluate_model,
                        remove_incomplete_sequences, save_reactivity_reactivity_error,
                        dump_as_tfrecord,read_tfrecord, train_model)
 
@@ -14,6 +14,8 @@ main.add_command(save_reactivity_reactivity_error)
 main.add_command(dump_as_tfrecord)
 main.add_command(read_tfrecord)
 main.add_command(train_model)
+main.add_command(evaluate_model)
+
 
 if __name__ == "__main__":
     # ps aux --sort=-%mem | head

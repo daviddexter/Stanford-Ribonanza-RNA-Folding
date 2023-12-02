@@ -12,6 +12,8 @@ from typing import Dict, List
 from loguru import logger
 from os.path import join
 
+from sqlalchemy import create_engine
+
 VOCAB = ['A','C','G','U']
 MAX_LEN = 457
 
@@ -267,9 +269,6 @@ def get_log_path(model_name:str) -> str:
     return log_path
 
 
-
-
-
 def submission_path():
     path = "out/submission.csv" 
     if os.path.exists(path) and os.path.isfile(path):
@@ -319,3 +318,7 @@ def load_fs_model(model_name:str):
     out_model_path = get_model_path(model_name=model_name)    
     model = tf.keras.saving.load_model(out_model_path)
     return model
+
+
+def connect_to_database():
+    return create_engine("postgresql+psycopg2://rna_submission_user:rna_submission_pwd@localhost/rna_submission_db")

@@ -1,12 +1,31 @@
 import csv
+from sqlalchemy import Column, text
 
 import tensorflow as tf
 from loguru import logger
+from tqdm import tqdm
+from sqlalchemy.orm import Session
 
 from keras.src.engine import data_adapter
 
 from rna_model.model.layers import MultiHeadAttentionBlock, SelfAttentionBlock, SequenceAndExperimentInputs
-from rna_model.utils import encode_experiment_type, get_or_create_log_path, get_or_create_model_path, load_testdataset, read_tfrecord_fn, sequence_to_ndarray, submission_path
+from rna_model.utils import connect_to_database, encode_experiment_type, get_or_create_log_path, get_or_create_model_path, load_testdataset, read_tfrecord_fn, sequence_to_ndarray, submission_path
+
+from sqlalchemy.orm import DeclarativeBase
+from sqlalchemy import insert
+from sqlalchemy.dialects.postgresql import INTEGER,NUMERIC
+
+class Base(DeclarativeBase):
+    pass
+
+
+class Submissions(Base):
+    __tablename__ = "submissions"
+
+    id = Column(INTEGER, primary_key=True)
+    reactivity_dms_map = Column(NUMERIC)
+    reactivity_2a3_map = Column(NUMERIC)
+
 
 
 @tf.keras.saving.register_keras_serializable()
@@ -176,12 +195,10 @@ class RNAReacitivityModel(tf.keras.Model):
 
         df = load_testdataset()    
 
-
-        submission_record_path = submission_path()
-        with open(submission_record_path, 'a+', newline='') as file:
-            writer = csv.writer(file,dialect='excel')
-
-            for row in df.iter_rows(named=True):
+        engine = connect_to_database()       
+        with Session(engine) as session:
+            rows = [ row for row in df.iter_rows(named=True)]
+            for row in tqdm(rows):
                 start_index = row['id_min']
                 end_index = row['id_max']
                 sequence_length = end_index - start_index
@@ -204,14 +221,14 @@ class RNAReacitivityModel(tf.keras.Model):
 
 
                 exp_dms_predict_dataset = (encoded_sequence,exp_dms_map_encoded)            
-                exp_dms_prediction = self.predict(exp_dms_predict_dataset,verbose=1,batch_size=1)
+                exp_dms_prediction = self.predict(exp_dms_predict_dataset,verbose=0,batch_size=1)
                 prediction1 = []
                 for i in range(0,sequence_length+1):
                     prediction1.append(exp_dms_prediction[0][i][0])
 
 
                 exp_2a3_predict_dataset = (encoded_sequence,exp_2a3_map_encoded)
-                exp_2a3_prediction = self.predict(exp_2a3_predict_dataset,verbose=1,batch_size=1)
+                exp_2a3_prediction = self.predict(exp_2a3_predict_dataset,verbose=0,batch_size=1)
                 prediction2 = []
                 for i in range(0,sequence_length+1):
                     prediction2.append(exp_2a3_prediction[0][i][0])
@@ -221,6 +238,7 @@ class RNAReacitivityModel(tf.keras.Model):
                 # merge predictions
                 results = zip(ids,prediction1,prediction2)
                 results = list(results)   
-                results = [ list(r)  for r in results ]               
-                
-                writer.writerows(results)
+                results = [ list(r)  for r in results ] 
+                results = [ {"id": r[0], "reactivity_dms_map": float(r[1]), "reactivity_2a3_map": float(r[2]) }  for r in results ] 
+                session.execute(insert(Submissions),results) 
+                session.commit() 

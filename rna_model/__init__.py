@@ -123,3 +123,35 @@ def train_model(model_name:str,epochs:int):
     with strategy.scope():
         model = RNAReacitivityModel()
         model.train_model_runner(model_name,epochs_count)
+
+
+@click.command
+@click.option('-mn', '--model-name')
+def evaluate_model(model_name:str):
+    # load model
+    if model_name is None:
+        click.echo("`model_name` must be specified")
+        return
+    
+    model = load_fs_model(model_name)
+
+    import ipdb;ipdb.set_trace()
+    
+
+    # load dataset
+    df = load_testdataset()    
+      
+    # for row in df.iter_rows(named=True):
+    #     sequence = row['sequence']
+    #     # convert to numpy feature
+    #     encoded_sequence = sequence_to_ndarray(sequence)
+
+    #     # encode DMS_MaP
+    #     _dms_map_encoded = encode_experiment_type("DMS_MaP")
+
+    #     # encode 2A3_MaP
+    #     _2a3_map_encoded = encode_experiment_type("2A3_MaP")
+
+    #     eval_dataset = tf.data.Dataset.from_tensor_slices([(encoded_sequence,_dms_map_encoded)])
+
+    #     print(sequence)
