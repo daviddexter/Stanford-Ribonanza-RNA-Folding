@@ -1,12 +1,13 @@
 import gc
 import os
 import click
+from sqlalchemy.orm import Session
 import tensorflow as tf
 import polars as pl
 
 from loguru import logger
-from rna_model.model import RNAReacitivityModel
-from rna_model.utils import ( _remove_incomplete_sequences, create_example, encode_experiment_type, 
+from rna_model.model import RNAReacitivityModel, get_functional_model, get_size_of_test_dataset, persist_test_dataset, predict_with_functional_model, retrieve_date_chunk, train_runner_functional_model
+from rna_model.utils import ( _remove_incomplete_sequences, connect_to_database, create_example, encode_experiment_type, 
                              get_reactivity_cols, 
                              get_reactivity_error_cols, get_train_tfrecords_path, load_fs_model, load_testdataset, 
                              load_training_dataset, read_tfrecord_fn, sequence_to_ndarray)
@@ -125,33 +126,46 @@ def train_model(model_name:str,epochs:int):
         model.train_model_runner(model_name,epochs_count)
 
 
+
 @click.command
-@click.option('-mn', '--model-name')
-def evaluate_model(model_name:str):
-    # load model
+@click.option('-mn', '--model-name',help="The name of the output model. The out model will be saved in out/models directory.")
+@click.option('-ep', '--epochs',help="The number of epochs tp train the model on.")
+def train_functional_model(model_name:str,epochs:int):
     if model_name is None:
         click.echo("`model_name` must be specified")
+        return  
+
+    if epochs is None:
+        click.echo("`epochs` must be specified")
         return
+
+    epochs_count = int(epochs)
     
-    model = load_fs_model(model_name)
+    tf.debugging.set_log_device_placement(False)
+    gpus = tf.config.list_logical_devices('GPU')
+    strategy = tf.distribute.MirroredStrategy(gpus)
+    with strategy.scope():
+        train_runner_functional_model(model_name,epochs_count) 
 
-    import ipdb;ipdb.set_trace()
+
+
+@click.command
+@click.option('-mn', '--model-name',help="The name of the output model. The out model will be saved in out/models directory.")
+def predict_with_model(model_name:str):
+    if model_name is None:
+        click.echo("`model_name` must be specified")
+        return 
     
+    tf.debugging.set_log_device_placement(False)
+    gpus = tf.config.list_logical_devices('GPU')
+    strategy = tf.distribute.MirroredStrategy(gpus)
+    with strategy.scope():
+        predict_with_functional_model(model_name)
+          
 
-    # load dataset
-    df = load_testdataset()    
-      
-    # for row in df.iter_rows(named=True):
-    #     sequence = row['sequence']
-    #     # convert to numpy feature
-    #     encoded_sequence = sequence_to_ndarray(sequence)
 
-    #     # encode DMS_MaP
-    #     _dms_map_encoded = encode_experiment_type("DMS_MaP")
-
-    #     # encode 2A3_MaP
-    #     _2a3_map_encoded = encode_experiment_type("2A3_MaP")
-
-    #     eval_dataset = tf.data.Dataset.from_tensor_slices([(encoded_sequence,_dms_map_encoded)])
-
-    #     print(sequence)
+@click.command
+def load_test_data_to_db():
+    # persist_test_dataset()    
+    for r in retrieve_date_chunk(0):        
+        print(r[0].sequence_str)

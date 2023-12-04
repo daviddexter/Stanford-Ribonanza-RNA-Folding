@@ -63,7 +63,7 @@ class MultiHeadAttentionBlock(tf.keras.layers.Layer):
     def call(self,inputs):
         x1,x2 = inputs[0], inputs[1]
         x = self.mhatt1(x1,x2)
-        assert x.shape == (1, 457, 64)
+        # assert x.shape == (1, 457, 64)
         x= self.layernorm(x)
         return self.dropout(x)
     

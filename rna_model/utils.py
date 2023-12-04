@@ -83,7 +83,7 @@ def load_training_dataset(no_nulls:bool):
 def load_testdataset():
     logger.info("Reading test dataset")
     test_data_path = "/home/kineticengines/app/datasets/test_sequences.csv"
-    df = pl.scan_csv(test_data_path).drop("sequence_id","future").collect()
+    df = pl.scan_csv(test_data_path).drop("sequence_id","future").collect(streaming=True)    
     return df
 
 
